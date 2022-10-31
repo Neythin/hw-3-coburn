@@ -1,0 +1,147 @@
+---
+title: "PSTAT 131-HW3"
+output: html_document
+date: "2022-10-30"
+name: "Nathan De Los Santos"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidymodels)
+library(ISLR) # For the Smarket data set
+library(ISLR2) # For the Bikeshare data set
+library(discrim)
+library(poissonreg)
+library(corrr)
+library(klaR) # for naive bayes
+tidymodels_prefer()
+titanic_data <- read.csv('data/titanic.csv')
+```
+
+```{r}
+set.seed(222)
+
+titanic_data$pclass <- factor(titanic_data$pclass)
+titanic_data$survived <- factor(titanic_data$survived, levels = c("Yes", "No"))
+```
+
+## Question 1
+```{r}
+titanic_split <- initial_split(titanic_data, prop = 0.7, strata = survived)
+titanic_train <- training(titanic_split)
+titanic_test <- testing(titanic_split)
+view(titanic_train)
+```
+There are missing values within variables such as age and cabin; therefore it is also a good idea to stratify the data so we can get a more precise analysis of the entire dataset
+
+## Question 2
+```{r}
+titanic_train %>%
+  ggplot(aes(survived)) +
+  geom_bar()
+```
+According to the bar graph, we can see that there are more passengers than did not survive than did survive. Roughly, I would say that, in the training set, "No" accounts for about 3/5 of the data and "Yes" takes about 2/5.
+
+## Question 3
+```{r}
+cor_titanic <- titanic_train %>%
+  select(age, fare) %>%
+  correlate()
+rplot(cor_titanic)
+```
+
+
+## Question 4
+```{r}
+titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, data = titanic_train) %>% 
+  step_impute_linear() %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(terms = ~ sex:fare) %>%
+  step_interact(terms = ~ age:fare)
+```
+
+
+## Question 5
+```{r}
+titanic_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+titanic_lin_wkflow <- workflow() %>% 
+  add_model(titanic_reg) %>% 
+  add_recipe(titanic_recipe)
+
+titanic_lin_fit <- fit(titanic_lin_wkflow, titanic_train)
+```
+
+
+## Question 6
+```{r}
+titanic_lda <- discrim_linear() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS") 
+
+titanic_lda_wkflow <- workflow() %>% 
+  add_model(titanic_lda) %>% 
+  add_recipe(titanic_recipe)
+
+titanic_lda_fit <- fit(titanic_lda_wkflow, titanic_train)
+```
+
+
+## Question 7
+```{r}
+titanic_qda <- discrim_quad() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS") 
+
+titanic_qda_wkflow <- workflow() %>% 
+  add_model(titanic_qda) %>% 
+  add_recipe(titanic_recipe)
+
+titanic_qda_fit <- fit(titanic_qda_wkflow, titanic_train)
+```
+
+
+## Question 8
+```{r}
+titanic_nb <- naive_Bayes() %>% 
+  set_mode("classification") %>% 
+  set_engine("klaR") %>% 
+  set_args(usekernel = FALSE)
+
+titanic_nb_wkflow <- workflow() %>% 
+  add_model(titanic_nb) %>% 
+  add_recipe(titanic_recipe)
+
+titanic_nb_fit <- fit(titanic_nb_wkflow, titanic_train)
+```
+
+
+## Question 9
+```{r}
+lin_pred <- predict(titanic_lin_fit, data = titanic_train)
+lda_pred <- predict(titanic_lda_fit, data = titanic_train)
+qda_pred <- predict(titanic_qda_fit, data = titanic_train)
+nb_pred <- predict(titanic_nb_fit, data = titanic_train)
+
+bind_cols(lin_pred, lda_pred, qda_pred, nb_pred)
+
+lin_acc <- augment(titanic_lin_fit, new_data = titanic_train) %>% 
+  accuracy(truth = Direction, estimate = .pred_class)
+lda_acc <- augment(titanic_lda_fit, new_data = titanic_train) %>% 
+  accuracy(truth = Direction, estimate = .pred_class)
+qda_acc <- augment(titanic_qda_fit, new_data = titanic_train) %>% 
+  accuracy(truth = Direction, estimate = .pred_class)
+nb_acc <- augment(titanic_nb_fit, new_data = titanic_train) %>% 
+  accuracy(truth = Direction, estimate = .pred_class)
+```
+
+
+## Question 10
+```{r}
+
+```

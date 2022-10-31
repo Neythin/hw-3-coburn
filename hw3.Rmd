@@ -35,7 +35,7 @@ titanic_train <- training(titanic_split)
 titanic_test <- testing(titanic_split)
 view(titanic_train)
 ```
-There are missing values within variables such as age and cabin; therefore it is also a good idea to stratify the data so we can get a more precise analysis of the entire dataset
+There are missing values within variables such as age and cabin; therefore it is also a good idea to stratify the data so we can get a more precise analysis of the entire data set
 
 ## Question 2
 ```{r}
@@ -48,18 +48,18 @@ According to the bar graph, we can see that there are more passengers than did n
 ## Question 3
 ```{r}
 cor_titanic <- titanic_train %>%
-  select(age, fare) %>%
+  select(age, fare, passenger_id, parch, sib_sp) %>%
   correlate()
 rplot(cor_titanic)
 ```
-
+After observing this correlation matrix, I do no see any obvious patterns, but we do see correlations between sib_sp & age (negative), sib_sp & parch (positive), parch & age (negative), parch & sib_sp (positive), and fare & parch (positive)
 
 ## Question 4
 ```{r}
 titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, data = titanic_train) %>% 
-  step_impute_linear() %>% 
+  step_impute_linear(age) %>% 
   step_dummy(all_nominal_predictors()) %>% 
-  step_interact(terms = ~ sex:fare) %>%
+  step_interact(terms = ~ starts_with("sex"):fare) %>%
   step_interact(terms = ~ age:fare)
 ```
 
@@ -122,26 +122,44 @@ titanic_nb_fit <- fit(titanic_nb_wkflow, titanic_train)
 
 
 ## Question 9
-```{r}
-lin_pred <- predict(titanic_lin_fit, data = titanic_train)
-lda_pred <- predict(titanic_lda_fit, data = titanic_train)
-qda_pred <- predict(titanic_qda_fit, data = titanic_train)
-nb_pred <- predict(titanic_nb_fit, data = titanic_train)
+```{r, warning=FALSE}
+lin_pred <- predict(titanic_lin_fit, new_data = titanic_train)
+lda_pred <- predict(titanic_lda_fit, new_data = titanic_train)
+qda_pred <- predict(titanic_qda_fit, new_data = titanic_train)
+nb_pred <- predict(titanic_nb_fit, new_data = titanic_train)
 
 bind_cols(lin_pred, lda_pred, qda_pred, nb_pred)
 
 lin_acc <- augment(titanic_lin_fit, new_data = titanic_train) %>% 
-  accuracy(truth = Direction, estimate = .pred_class)
+  accuracy(truth = survived, estimate = .pred_class)
+# 0.787
 lda_acc <- augment(titanic_lda_fit, new_data = titanic_train) %>% 
-  accuracy(truth = Direction, estimate = .pred_class)
+  accuracy(truth = survived, estimate = .pred_class)
+# 0.780
 qda_acc <- augment(titanic_qda_fit, new_data = titanic_train) %>% 
-  accuracy(truth = Direction, estimate = .pred_class)
+  accuracy(truth = survived, estimate = .pred_class)
+# 0.759
 nb_acc <- augment(titanic_nb_fit, new_data = titanic_train) %>% 
-  accuracy(truth = Direction, estimate = .pred_class)
+  accuracy(truth = survived, estimate = .pred_class)
+# 0.756
 ```
-
+The logistic regression model did the best -- having a 78.7% accuracy
 
 ## Question 10
 ```{r}
+predict(titanic_lin_fit, new_data = titanic_test, type = "prob")
 
+augment(titanic_lin_fit, new_data = titanic_test) %>%
+  conf_mat(truth = survived, estimate = .pred_class)
+
+augment(titanic_lin_fit, new_data = titanic_test) %>% 
+  accuracy(truth = survived, estimate = .pred_class)
+
+augment(titanic_lin_fit, new_data = titanic_test) %>%
+  roc_curve(survived, .pred_Yes) %>%
+  autoplot()
+
+augment(titanic_lin_fit, new_data = titanic_test) %>% 
+  roc_auc(survived, .pred_Yes)
 ```
+When I used my testing data, I was able to obtain an AUC of 0.910. This did relatively better than my training accuracy, which topped out at about 78. This might be due to the fact that the data was split 70/30, and being that there is only a limited amount of passengers on the Titanic, this difference could have been simply by chance.
